@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account - Seurt</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="nav">
+        <div class="container nav-container">
+            <a href="/" class="nav-brand">Seurt</a>
+            <div class="nav-links">
+                <a href="/chats">Chats</a>
+                <a href="/">Home</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div id="alert-container"></div>
+
+        <div class="card">
+            <div class="card-header">
+                <h1 class="card-title">Account Details</h1>
+                <p class="card-description" id="account-description">Loading account information...</p>
+            </div>
+
+            <div id="account-info" class="hidden">
+                <div class="grid grid-2 gap-4 mb-4">
+                    <div>
+                        <label class="label">User ID</label>
+                        <div class="input" style="background-color: hsl(var(--muted)); font-family: monospace; font-size: 12px;" id="user-id-display">Loading...</div>
+                    </div>
+                    <div>
+                        <label class="label">Username</label>
+                        <div class="input" style="background-color: hsl(var(--muted));" id="username-display">Loading...</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="label">Account Created</label>
+                    <div class="input" style="background-color: hsl(var(--muted));" id="created-display">Loading...</div>
+                </div>
+
+                <div id="self-only-section" class="hidden">
+                    <h2 class="card-title mb-4">Your Chats</h2>
+                    <div id="user-chats-container">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="loading-container">
+                <div class="loading">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const userId = '{{ id }}';
+        const isSelf = {{ 'true' if is_self else 'false' }};
+        let userData = null;
+
+        async function loadUser() {
+            try {
+                const response = await fetch(`/api/user/${userId}`);
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        return result.data.user;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading user:', error);
+            }
+            return null;
+        }
+
+        function showAlert(message, type = 'error') {
+            const alertContainer = document.getElementById('alert-container');
+            alertContainer.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+        }
+
+        function renderUserChats(chats) {
+            const container = document.getElementById('user-chats-container');
+            
+            if (!chats || chats.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: hsl(var(--muted-foreground));">
+                        <p>No chats yet.</p>
+                        <a href="/chats" class="button button-primary mt-4">Create Your First Chat</a>
+                    </div>
+                `;
+                return;
+            }
+
+            const chatList = chats.map(chat => `
+                <div class="chat-item" onclick="window.location.href='/chats/${chat.chat_id}'">
+                    <div class="chat-name">${chat.name}</div>
+                    <div class="chat-preview">Created: ${new Date(chat.created_at).toLocaleDateString()}</div>
+                </div>
+            `).join('');
+
+            container.innerHTML = `<div class="chat-list">${chatList}</div>`;
+        }
+
+        function displayUserInfo() {
+            if (!userData) return;
+
+            document.getElementById('user-id-display').textContent = userData.user_id;
+            document.getElementById('username-display').textContent = userData.username;
+            document.getElementById('created-display').textContent = new Date(userData.created_at).toLocaleDateString();
+
+            const description = document.getElementById('account-description');
+            description.textContent = isSelf ? 'Manage your account and view your chats' : `Viewing ${userData.username}'s profile`;
+
+            if (isSelf && userData.chats) {
+                document.getElementById('self-only-section').classList.remove('hidden');
+                renderUserChats(userData.chats);
+            }
+
+            document.getElementById('loading-container').classList.add('hidden');
+            document.getElementById('account-info').classList.remove('hidden');
+        }
+
+        async function initializeAccount() {
+            userData = await loadUser();
+
+            if (!userData) {
+                showAlert('Failed to load account information. The user may not exist.');
+                document.getElementById('loading-container').innerHTML = `
+                    <div style="text-align: center; padding: 2rem;">
+                        <p>Account not found.</p>
+                        <a href="/chats" class="button button-primary">Go to Chats</a>
+                    </div>
+                `;
+                return;
+            }
+
+            displayUserInfo();
+        }
+
+        initializeAccount();
+    </script>
+</body>
+</html>

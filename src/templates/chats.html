@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chats - Seurt</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="nav">
+        <div class="container nav-container">
+            <a href="/" class="nav-brand">Seurt</a>
+            <div class="nav-links">
+                <a href="/">Home</a>
+                <a href="/accounts/create">Create Account</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="flex items-center justify-between mb-4">
+            <h1>Your Chats</h1>
+            <button class="button button-primary" onclick="showCreateChatModal()">Create Chat</button>
+        </div>
+
+        <div id="alert-container"></div>
+
+        <div class="grid grid-2 gap-4">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Chat Rooms</h2>
+                    <p class="card-description">Your active conversations</p>
+                </div>
+                <div id="chats-container">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card hidden" id="create-chat-card">
+                <div class="card-header">
+                    <h2 class="card-title">Create New Chat</h2>
+                    <p class="card-description">Start a new conversation</p>
+                </div>
+                <form id="create-chat-form">
+                    <div class="form-group">
+                        <label class="label" for="chat-name">Chat Name</label>
+                        <input type="text" id="chat-name" name="chat-name" class="input" placeholder="Enter chat name" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="label" for="members">Members (User IDs, comma-separated)</label>
+                        <textarea id="members" name="members" class="input" placeholder="user1,user2,user3" style="height: 80px;"></textarea>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="submit" class="button button-primary">Create Chat</button>
+                        <button type="button" class="button button-secondary" onclick="hideCreateChatModal()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+
+        async function getCurrentUser() {
+            try {
+                const response = await fetch('/api/user/me');
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        return result.data.user;
+                    }
+                }
+            } catch (error) {
+                console.error('Error getting current user:', error);
+            }
+            return null;
+        }
+
+        async function getUserChats(userId) {
+            try {
+                const response = await fetch(`/api/user/${userId}`);
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.data.user.chats) {
+                        return result.data.user.chats;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading chats:', error);
+            }
+            return [];
+        }
+
+        async function createChat(name, members) {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name, members })
+            });
+            return await response.json();
+        }
+
+        function showAlert(message, type = 'error') {
+            const alertContainer = document.getElementById('alert-container');
+            alertContainer.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+        }
+
+        function showCreateChatModal() {
+            document.getElementById('create-chat-card').classList.remove('hidden');
+        }
+
+        function hideCreateChatModal() {
+            document.getElementById('create-chat-card').classList.add('hidden');
+            document.getElementById('create-chat-form').reset();
+        }
+
+        function renderChats(chats) {
+            const container = document.getElementById('chats-container');
+            
+            if (chats.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: hsl(var(--muted-foreground));">
+                        <p>No chats yet. Create your first chat to get started!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const chatList = chats.map(chat => `
+                <div class="chat-item" onclick="window.location.href='/chats/${chat.chat_id}'">
+                    <div class="chat-name">${chat.name}</div>
+                    <div class="chat-preview">Created: ${new Date(chat.created_at).toLocaleDateString()}</div>
+                </div>
+            `).join('');
+
+            container.innerHTML = `<div class="chat-list">${chatList}</div>`;
+        }
+
+        async function loadChats() {
+            const container = document.getElementById('chats-container');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            currentUser = await getCurrentUser();
+            
+            if (!currentUser) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 2rem;">
+                        <p>Please <a href="/accounts/create">create an account</a> to view chats.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const chats = await getUserChats(currentUser.user_id);
+            renderChats(chats);
+        }
+
+        document.getElementById('create-chat-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('chat-name').value.trim();
+            const membersText = document.getElementById('members').value.trim();
+            
+            if (!name) {
+                showAlert('Please enter a chat name');
+                return;
+            }
+
+            let members = [];
+            if (membersText) {
+                members = membersText.split(',').map(m => m.trim()).filter(m => m);
+            }
+
+            if (currentUser) {
+                members.push(currentUser.user_id);
+            }
+
+            try {
+                const result = await createChat(name, members);
+                
+                if (result.success) {
+                    showAlert('Chat created successfully!', 'success');
+                    hideCreateChatModal();
+                    loadChats();
+                } else {
+                    showAlert(result.error_msg || 'Failed to create chat');
+                }
+            } catch (error) {
+                showAlert('Network error. Please try again.');
+            }
+        });
+
+        loadChats();
+    </script>
+</body>
+</html>

@@ -3,9 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Seurt - Secure Chat Platform</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    
+    <nav class="nav">
+        <div class="container nav-container">
+            <a href="/" class="nav-brand">Seurt</a>
+            <div class="nav-links">
+                <a href="/accounts/create">Create Account</a>
+                <a href="/chats">Chats</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="hero">
+            <h1 class="hero-title">Welcome to Seurt</h1>
+            <p class="hero-description">
+                A secure and simple chat platform designed for privacy-focused communication. 
+                Connect with others without compromising your data.
+            </p>
+            <div class="flex gap-4 justify-center">
+                <a href="/accounts/create" class="button button-primary">Get Started</a>
+                <a href="/chats" class="button button-secondary">View Chats</a>
+            </div>
+        </div>
+
+        <div class="grid grid-3 mt-4">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Secure</h3>
+                    <p class="card-description">End-to-end encryption keeps your conversations private</p>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Simple</h3>
+                    <p class="card-description">Clean, intuitive interface that's easy to use</p>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Fast</h3>
+                    <p class="card-description">Real-time messaging with instant delivery</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h2 class="card-title">Features</h2>
+                <p class="card-description">Everything you need for secure communication</p>
+            </div>
+            <ul class="feature-list">
+                <li class="feature-item">
+                    <div class="feature-title">Token-based Authentication</div>
+                    <div class="feature-description">Secure login without passwords using unique tokens</div>
+                </li>
+                <li class="feature-item">
+                    <div class="feature-title">Group Chats</div>
+                    <div class="feature-description">Create and manage group conversations with multiple participants</div>
+                </li>
+                <li class="feature-item">
+                    <div class="feature-title">Real-time Messaging</div>
+                    <div class="feature-description">Instant message delivery and notifications</div>
+                </li>
+                <li class="feature-item">
+                    <div class="feature-title">Privacy First</div>
+                    <div class="feature-description">Your data stays secure with minimal collection and storage</div>
+                </li>
+            </ul>
+        </div>
+    </div>
 </body>
 </html>

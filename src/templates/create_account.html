@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Account - Seurt</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="nav">
+        <div class="container nav-container">
+            <a href="/" class="nav-brand">Seurt</a>
+            <div class="nav-links">
+                <a href="/">Home</a>
+                <a href="/chats">Chats</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="card" style="max-width: 500px; margin: 2rem auto;">
+            <div class="card-header">
+                <h1 class="card-title">Create Your Account</h1>
+                <p class="card-description">Choose a username to get started. We'll generate a secure token for you.</p>
+            </div>
+
+            <div id="alert-container"></div>
+
+            <form id="create-account-form">
+                <div class="form-group">
+                    <label class="label" for="username">Username</label>
+                    <input type="text" id="username" name="username" class="input" placeholder="Enter your username" required>
+                </div>
+                <button type="submit" class="button button-primary" id="create-btn">
+                    <span id="btn-text">Create Account</span>
+                    <div class="spinner hidden" id="spinner"></div>
+                </button>
+            </form>
+        </div>
+
+        <div class="card hidden" id="success-card" style="max-width: 500px; margin: 2rem auto;">
+            <div class="card-header">
+                <h2 class="card-title">Account Created!</h2>
+                <p class="card-description">Your account has been successfully created. Save your token securely.</p>
+            </div>
+            <div class="form-group">
+                <label class="label">Your Username:</label>
+                <div id="created-username" class="font-semibold"></div>
+            </div>
+            <div class="form-group">
+                <label class="label">Your Token (keep this safe):</label>
+                <textarea id="created-token" class="input" readonly style="height: 60px; font-family: monospace; font-size: 12px;"></textarea>
+                <button type="button" class="button button-secondary mt-4" onclick="copyToken()">Copy Token</button>
+            </div>
+            <a href="/chats" class="button button-primary">Go to Chats</a>
+        </div>
+    </div>
+
+    <script>
+        async function createAccount(username) {
+            const response = await fetch('/api/user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username })
+            });
+            return await response.json();
+        }
+
+        function showAlert(message, type = 'error') {
+            const alertContainer = document.getElementById('alert-container');
+            alertContainer.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+        }
+
+        function copyToken() {
+            const tokenField = document.getElementById('created-token');
+            tokenField.select();
+            document.execCommand('copy');
+            showAlert('Token copied to clipboard!', 'success');
+        }
+
+        document.getElementById('create-account-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const createBtn = document.getElementById('create-btn');
+            const btnText = document.getElementById('btn-text');
+            const spinner = document.getElementById('spinner');
+            const alertContainer = document.getElementById('alert-container');
+            
+            const username = document.getElementById('username').value.trim();
+            
+            if (!username) {
+                showAlert('Please enter a username');
+                return;
+            }
+
+            createBtn.disabled = true;
+            btnText.textContent = 'Creating...';
+            spinner.classList.remove('hidden');
+            alertContainer.innerHTML = '';
+
+            try {
+                const result = await createAccount(username);
+                
+                if (result.success) {
+                    document.getElementById('create-account-form').parentElement.classList.add('hidden');
+                    document.getElementById('success-card').classList.remove('hidden');
+                    document.getElementById('created-username').textContent = result.data.username;
+                    document.getElementById('created-token').textContent = result.data.token;
+                } else {
+                    showAlert(result.error_msg || 'Failed to create account');
+                }
+            } catch (error) {
+                showAlert('Network error. Please try again.');
+            } finally {
+                createBtn.disabled = false;
+                btnText.textContent = 'Create Account';
+                spinner.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
