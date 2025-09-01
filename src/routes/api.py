@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, jsonify, request, session, send_fr
 from src.controllers.db import DB
 import secrets
 
-blueprint = Blueprint('api', __name__, static_folder='../static/')
+blueprint = Blueprint('api', __name__, static_folder='/static', static_url_path='/static')
 
 db = DB()
 
@@ -48,7 +48,3 @@ def send_message(chat_id):
     data = request.get_json()
     content = data.get('content') if data else None
     return jsonify(db.send_message(content=content))
-
-@blueprint.route('/static/style.css')
-def css():
-    return send_from_directory('../static/', 'style.css')
