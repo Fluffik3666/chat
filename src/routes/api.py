@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, jsonify, request
+from flask import Blueprint, render_template, jsonify, request, session
 from src.controllers.db import DB
 import secrets
 
@@ -15,11 +15,18 @@ def create_user():
     data = request.get_json()
     username = data.get('username') if data else None
     token = secrets.token_urlsafe(32)
-    return jsonify(db.create_user(username=username, token=token))
+    result = db.create_user(username=username, token=token)
+    
+    if result.get('success'):
+        session['user_id'] = result['data']['user_id']
+        session['token'] = token
+    
+    return jsonify(result)
 
 @blueprint.route('/user/<user_id>', methods=['GET'])
 def get_user(user_id):
-    return jsonify(db.get_user(user_id=user_id))
+    is_self = session.get('user_id') == user_id
+    return jsonify(db.get_user(user_id=user_id, is_self=is_self))
 
 @blueprint.route('/chat', methods=['POST'])
 def create_chat():
