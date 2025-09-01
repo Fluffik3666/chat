@@ -103,7 +103,8 @@ class DB:
     
     def get_user(
         self,
-        user_id: str = None
+        user_id: str = None,
+        is_self: bool = False
     ) -> dict:
         if user_id is None or user_id == "":
             return self._format_response(
@@ -111,15 +112,30 @@ class DB:
                 error_msg="No user_id provided."
             )
         
+        user_data = {
+            "user_id": user_id,
+            "username": "john",
+            "created_at": "2025-01-15T14:30:45.123456+00:00"
+        }
+        
+        if is_self:
+            user_data["chats"] = [
+                {
+                    "chat_id": "C4E8F9A2-B3D7-4C5E-8F9A-2B3D7C5E8F9A",
+                    "name": "test chat",
+                    "created_at": "2025-01-15T14:30:45.123456+00:00"
+                },
+                {
+                    "chat_id": "D5F9G0B3-C4E7-5D6F-9G0B-3C4E7D6F9G0B",
+                    "name": "another chat",
+                    "created_at": "2025-01-16T10:15:30.789123+00:00"
+                }
+            ]
+        
         return self._format_response(
             True,
             data={
-                "user": {
-                    "user_id": user_id,
-                    "username": "sasha_bagrov",
-                    "email": "sasha@example.com",
-                    "created_at": "2025-01-15T14:30:45.123456+00:00"
-                }
+                "user": user_data
             }
         )
     
