@@ -1,1 +1,3 @@
-# Put the firebase file here for now, later will be .env
+# Firebase
+- Place your firebase creds here when doing local testing
+- Remember to keep the file out of version control!

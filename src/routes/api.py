@@ -4,7 +4,7 @@ import secrets
 
 blueprint = Blueprint('api', __name__, static_folder='/static', static_url_path='/static')
 
-db = DB(credentials_path="./firebase/seurt-app-firebase-adminsdk-fbsvc-28bbbedeca.json")
+db = DB()
 
 @blueprint.route('/health')
 def health():
