@@ -216,6 +216,8 @@ class DB:
                         "name": chat_data.get("name"),
                         "created_at": chat_data.get("created_at")
                     })
+
+            user_data.pop('token') # remove the token
             
             return self._format_response(
                 True,
