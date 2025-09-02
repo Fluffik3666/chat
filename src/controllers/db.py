@@ -64,14 +64,23 @@ class DB:
                 False,
                 error_msg="No username provided."
             )
-        
+    
         if token is None or token == "":
             return self._format_response(
                 False,
                 error_msg="No token provided."
             )
-        
+    
         try:
+            existing_users = self.db.collection('users').where('username', '==', username).limit(1)
+            existing_user_docs = list(existing_users.stream())
+            
+            if existing_user_docs:
+                return self._format_response(
+                    False,
+                    error_msg="Username already exists. Please choose a different username."
+                )
+            
             user_id = str(uuid.uuid4()).upper()
             created_at = self._get_time()
             
