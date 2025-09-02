@@ -10,9 +10,8 @@
     <nav class="nav">
         <div class="container nav-container">
             <a href="/" class="nav-brand">Seurt</a>
-            <div class="nav-links">
+            <div class="nav-links" id="nav-links">
                 <a href="/chats">Chats</a>
-                <a href="/">Home</a>
             </div>
         </div>
     </nav>
@@ -140,6 +139,20 @@
                     </div>
                 `;
                 return;
+            }
+
+            // Update nav for any signed in user viewing profiles
+            try {
+                const currentUser = await fetch('/api/user/me').then(r => r.json());
+                if (currentUser.success) {
+                    const navLinks = document.getElementById('nav-links');
+                    navLinks.innerHTML = `
+                        <a href="/chats">Chats</a>
+                        <a href="/accounts/${currentUser.data.user.user_id}">My Profile</a>
+                    `;
+                }
+            } catch (e) {
+                // User not signed in, keep default nav
             }
 
             displayUserInfo();

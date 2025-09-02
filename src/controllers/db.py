@@ -1,9 +1,20 @@
 import pytz
 from datetime import datetime
+from firebase_admin import firestore
+import firebase_admin
+from firebase_admin import credentials
+import uuid
 
 class DB:
-    def __init__(self):
-        pass
+    def __init__(self, credentials_path=None):
+        if not firebase_admin._apps:
+            if credentials_path:
+                cred = credentials.Certificate(credentials_path)
+                firebase_admin.initialize_app(cred)
+            else:
+                firebase_admin.initialize_app()
+        
+        self.db = firestore.client()
     
     def _format_response(self, success: bool, error_msg: str = None, data: dict = None) -> dict:
         rt = {
@@ -45,15 +56,28 @@ class DB:
                 error_msg="No token provided."
             )
         
-        return self._format_response(
-            True,
-            data={
-                "user_id": "7268A37D-D46F-4A0F-B2AA-54902FEEA729",
+        try:
+            user_id = str(uuid.uuid4()).upper()
+            created_at = self._get_time()
+            
+            user_data = {
+                "user_id": user_id,
                 "username": username,
                 "token": token,
-                "created_at": self._get_time()
+                "created_at": created_at
             }
-        )
+            
+            self.db.collection('users').document(user_id).set(user_data)
+            
+            return self._format_response(
+                True,
+                data=user_data
+            )
+        except Exception as e:
+            return self._format_response(
+                False,
+                error_msg=f"Failed to create user: {str(e)}"
+            )
     
     def create_chat(
         self,
@@ -72,19 +96,34 @@ class DB:
                 error_msg="No members provided."
             )
         
-        return self._format_response(
-            True,
-            data={
-                "chat_id": "C4E8F9A2-B3D7-4C5E-8F9A-2B3D7C5E8F9A",
+        try:
+            chat_id = str(uuid.uuid4()).upper()
+            created_at = self._get_time()
+            
+            chat_data = {
+                "chat_id": chat_id,
                 "name": name,
                 "members": members,
-                "created_at": self._get_time()
+                "created_at": created_at
             }
-        )
+            
+            self.db.collection('chats').document(chat_id).set(chat_data)
+            
+            return self._format_response(
+                True,
+                data=chat_data
+            )
+        except Exception as e:
+            return self._format_response(
+                False,
+                error_msg=f"Failed to create chat: {str(e)}"
+            )
     
     def send_message(
         self,
-        content: str = None
+        content: str = None,
+        chat_id: str = None,
+        sender_id: str = None
     ) -> dict:
         if content is None or content == "":
             return self._format_response(
@@ -92,14 +131,40 @@ class DB:
                 error_msg="No message provided."
             )
         
-        return self._format_response(
-            True,
-            data={
-                "message_id": "790C96CB-8877-4870-9AD3-47DF1625175E",
+        if chat_id is None or chat_id == "":
+            return self._format_response(
+                False,
+                error_msg="No chat_id provided."
+            )
+        
+        if sender_id is None or sender_id == "":
+            return self._format_response(
+                False,
+                error_msg="No sender_id provided."
+            )
+        
+        try:
+            message_id = str(uuid.uuid4()).upper()
+            timestamp = self._get_time()
+            
+            message_data = {
+                "message_id": message_id,
                 "content": content,
-                "timestamp": self._get_time()
+                "sender_id": sender_id,
+                "timestamp": timestamp
             }
-        )
+            
+            self.db.collection('chats').document(chat_id).collection('messages').document(message_id).set(message_data)
+            
+            return self._format_response(
+                True,
+                data=message_data
+            )
+        except Exception as e:
+            return self._format_response(
+                False,
+                error_msg=f"Failed to send message: {str(e)}"
+            )
     
     def get_user(
         self,
@@ -112,32 +177,40 @@ class DB:
                 error_msg="No user_id provided."
             )
         
-        user_data = {
-            "user_id": user_id,
-            "username": "john",
-            "created_at": "2025-01-15T14:30:45.123456+00:00"
-        }
-        
-        if is_self:
-            user_data["chats"] = [
-                {
-                    "chat_id": "C4E8F9A2-B3D7-4C5E-8F9A-2B3D7C5E8F9A",
-                    "name": "test chat",
-                    "created_at": "2025-01-15T14:30:45.123456+00:00"
-                },
-                {
-                    "chat_id": "D5F9G0B3-C4E7-5D6F-9G0B-3C4E7D6F9G0B",
-                    "name": "another chat",
-                    "created_at": "2025-01-16T10:15:30.789123+00:00"
-                }
-            ]
-        
-        return self._format_response(
-            True,
-            data={
-                "user": user_data
-            }
-        )
+        try:
+            user_ref = self.db.collection('users').document(user_id)
+            user_doc = user_ref.get()
+            
+            if not user_doc.exists:
+                return self._format_response(
+                    False,
+                    error_msg="User not found."
+                )
+            
+            user_data = user_doc.to_dict()
+            
+            if is_self:
+                chats_ref = self.db.collection('chats').where('members', 'array_contains', user_id)
+                chats = chats_ref.stream()
+                
+                user_data["chats"] = []
+                for chat in chats:
+                    chat_data = chat.to_dict()
+                    user_data["chats"].append({
+                        "chat_id": chat_data.get("chat_id"),
+                        "name": chat_data.get("name"),
+                        "created_at": chat_data.get("created_at")
+                    })
+            
+            return self._format_response(
+                True,
+                data={"user": user_data}
+            )
+        except Exception as e:
+            return self._format_response(
+                False,
+                error_msg=f"Failed to get user: {str(e)}"
+            )
     
     def get_chat(
         self,
@@ -149,36 +222,39 @@ class DB:
                 error_msg="No chat_id provided."
             )
         
-        return self._format_response(
-            True,
-            data={
-                "chat": {
-                    "info": {
-                        "chat_id": chat_id,
-                        "members": [
-                            "7268A37D-D46F-4A0F-B2AA-54902FEEA729",
-                            "7268A37D-D46F-4A0F-B2AA-54902FEEA735"
-                        ],
-                        "name": "test chat",
-                        "created_at": "2025-01-15T14:30:45.123456+00:00"
-                    },
-                    "messages": [
-                        {
-                            "message_id": "790C96CB-8877-4870-9AD3-47DF1625175E",
-                            "content": "hi",
-                            "sender_id": "7268A37D-D46F-4A0F-B2AA-54902FEEA729",
-                            "timestamp": "2025-01-15T14:30:45.123456+00:00"
-                        },
-                        {
-                            "message_id": "790C96CB-8877-4870-9AD3-47DF1625175F",
-                            "content": "hey hru?",
-                            "sender_id": "7268A37D-D46F-4A0F-B2AA-54902FEEA735",
-                            "timestamp": "2025-01-15T14:31:22.456789+00:00"
-                        }
-                    ]
+        try:
+            chat_ref = self.db.collection('chats').document(chat_id)
+            chat_doc = chat_ref.get()
+            
+            if not chat_doc.exists:
+                return self._format_response(
+                    False,
+                    error_msg="Chat not found."
+                )
+            
+            chat_data = chat_doc.to_dict()
+            
+            messages_ref = chat_ref.collection('messages').order_by('timestamp')
+            messages = messages_ref.stream()
+            
+            messages_list = []
+            for msg in messages:
+                messages_list.append(msg.to_dict())
+            
+            return self._format_response(
+                True,
+                data={
+                    "chat": {
+                        "info": chat_data,
+                        "messages": messages_list
+                    }
                 }
-            }
-        )
+            )
+        except Exception as e:
+            return self._format_response(
+                False,
+                error_msg=f"Failed to get chat: {str(e)}"
+            )
     
     def get_messages(
         self,
@@ -190,22 +266,115 @@ class DB:
                 error_msg="No chat_id provided."
             )
         
-        return self._format_response(
-            True,
-            data={
-                "messages": [
-                    {
-                        "message_id": "790C96CB-8877-4870-9AD3-47DF1625175E",
-                        "content": "hi",
-                        "sender_id": "7268A37D-D46F-4A0F-B2AA-54902FEEA729",
-                        "timestamp": "2025-01-15T14:30:45.123456+00:00"
-                    },
-                    {
-                        "message_id": "790C96CB-8877-4870-9AD3-47DF1625175F",
-                        "content": "hey hru?",
-                        "sender_id": "7268A37D-D46F-4A0F-B2AA-54902FEEA735",
-                        "timestamp": "2025-01-15T14:31:22.456789+00:00"
-                    }
-                ]
-            }
-        )
+        try:
+            messages_ref = self.db.collection('chats').document(chat_id).collection('messages').order_by('timestamp')
+            messages = messages_ref.stream()
+            
+            messages_list = []
+            for msg in messages:
+                messages_list.append(msg.to_dict())
+            
+            return self._format_response(
+                True,
+                data={"messages": messages_list}
+            )
+        except Exception as e:
+            return self._format_response(
+                False,
+                error_msg=f"Failed to get messages: {str(e)}"
+            )
+    
+    def get_user_by_username(self, username: str = None) -> dict:
+        if username is None or username == "":
+            return self._format_response(False, error_msg="No username provided.")
+        
+        try:
+            users_ref = self.db.collection('users').where('username', '==', username).limit(1)
+            users = list(users_ref.stream())
+            
+            if not users:
+                return self._format_response(False, error_msg="User not found.")
+            
+            user_data = users[0].to_dict()
+            return self._format_response(True, data={"user": user_data})
+        except Exception as e:
+            return self._format_response(False, error_msg=f"Failed to get user: {str(e)}")
+    
+    def add_member_to_chat(self, chat_id: str = None, user_id: str = None) -> dict:
+        if chat_id is None or chat_id == "":
+            return self._format_response(False, error_msg="No chat_id provided.")
+    
+        if user_id is None or user_id == "":
+            return self._format_response(False, error_msg="No user_id provided.")
+    
+        try:
+            chat_ref = self.db.collection('chats').document(chat_id)
+            chat_doc = chat_ref.get()
+
+            if not chat_doc.exists:
+                return self._format_response(False, error_msg="Chat not found.")
+
+            chat_data = chat_doc.to_dict()
+            members = chat_data.get('members', [])
+
+            if user_id in members:
+                return self._format_response(False, error_msg="User is already a member.")
+        
+            members.append(user_id)
+            chat_ref.update({'members': members})
+
+            return self._format_response(True, data={"message": "Member added successfully"})
+        except Exception as e:
+            return self._format_response(False, error_msg=f"Failed to add member: {str(e)}")
+    
+    def remove_member_from_chat(self, chat_id: str = None, user_id: str = None) -> dict:
+        if chat_id is None or chat_id == "":
+            return self._format_response(False, error_msg="No chat_id provided.")
+
+        if user_id is None or user_id == "":
+            return self._format_response(False, error_msg="No user_id provided.")
+
+        try:
+            chat_ref = self.db.collection('chats').document(chat_id)
+            chat_doc = chat_ref.get()
+
+            if not chat_doc.exists:
+                return self._format_response(False, error_msg="Chat not found.")
+
+            chat_data = chat_doc.to_dict()
+            members = chat_data.get('members', [])
+
+            if user_id not in members:
+                return self._format_response(False, error_msg="User is not a member.")
+
+            members.remove(user_id)
+            chat_ref.update({'members': members})
+
+            return self._format_response(True, data={"message": "Member removed successfully"})
+        except Exception as e:
+            return self._format_response(False, error_msg=f"Failed to remove member: {str(e)}")
+    
+    def delete_chat(self, chat_id: str = None) -> dict:
+        if chat_id is None or chat_id == "":
+            return self._format_response(False, error_msg="No chat_id provided.")
+
+        try:
+            chat_ref = self.db.collection('chats').document(chat_id)
+            chat_doc = chat_ref.get()
+
+            if not chat_doc.exists:
+                return self._format_response(False, error_msg="Chat not found.")
+
+            # Delete all messages in the chat first
+            messages_ref = chat_ref.collection('messages')
+            messages = messages_ref.stream()
+
+            for message in messages:
+                message.reference.delete()
+
+            # Delete the chat document
+            chat_ref.delete()
+
+            return self._format_response(True, data={"message": "Chat deleted successfully"})
+        except Exception as e:
+            return self._format_response(False, error_msg=f"Failed to delete chat: {str(e)}")

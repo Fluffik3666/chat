@@ -10,9 +10,8 @@
     <nav class="nav">
         <div class="container nav-container">
             <a href="/" class="nav-brand">Seurt</a>
-            <div class="nav-links">
+            <div class="nav-links" id="nav-links">
                 <a href="/chats">Back to Chats</a>
-                <a href="/">Home</a>
             </div>
         </div>
     </nav>
@@ -30,10 +29,36 @@
                 <div class="flex items-center justify-between mb-4">
                     <div>
                         <strong>Members:</strong> <span id="member-count">0</span>
+                        <button class="button button-secondary" style="margin-left: 1rem; padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="showChatSettings()">Settings</button>
                     </div>
                     <div class="text-sm" id="chat-created">
                         Created: <span id="created-date"></span>
                     </div>
+                </div>
+            </div>
+
+            <div class="card hidden" id="chat-settings-card" style="margin-bottom: 1rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Chat Settings</h3>
+                    <p class="card-description">Manage this chat</p>
+                </div>
+                
+                <div class="mb-4">
+                    <h4 class="font-semibold mb-2">Add Member</h4>
+                    <div class="flex gap-2">
+                        <input type="text" id="add-member-username" class="input" placeholder="Enter username" style="flex: 1;">
+                        <button type="button" class="button button-primary" onclick="addMemberToChat()">Add</button>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <h4 class="font-semibold mb-2">Current Members</h4>
+                    <div id="current-members-list">Loading...</div>
+                </div>
+                
+                <div class="flex gap-2">
+                    <button type="button" class="button button-secondary" onclick="hideChatSettings()">Close</button>
+                    <button type="button" class="button button-destructive" onclick="deleteChat()">Delete Chat</button>
                 </div>
             </div>
 
@@ -68,6 +93,50 @@
                 console.error('Error getting current user:', error);
             }
             return null;
+        }
+
+        async function getUserByUsername(username) {
+            try {
+                const response = await fetch(`/api/user/by-username/${username}`);
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        return result.data.user;
+                    }
+                }
+            } catch (error) {
+                console.error('Error finding user:', error);
+            }
+            return null;
+        }
+
+        async function addUserToChat(chatId, userId) {
+            const response = await fetch(`/api/chat/${chatId}/add-member`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ user_id: userId })
+            });
+            return await response.json();
+        }
+
+        async function removeUserFromChat(chatId, userId) {
+            const response = await fetch(`/api/chat/${chatId}/remove-member`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ user_id: userId })
+            });
+            return await response.json();
+        }
+
+        async function deleteChatRequest(chatId) {
+            const response = await fetch(`/api/chat/${chatId}`, {
+                method: 'DELETE'
+            });
+            return await response.json();
         }
 
         async function loadChat() {
@@ -147,8 +216,126 @@
             chatInfo.classList.remove('hidden');
         }
 
+        function showChatSettings() {
+            document.getElementById('chat-settings-card').classList.remove('hidden');
+            renderCurrentMembers();
+        }
+
+        function hideChatSettings() {
+            document.getElementById('chat-settings-card').classList.add('hidden');
+        }
+
+        async function renderCurrentMembers() {
+            const container = document.getElementById('current-members-list');
+            
+            if (!chatData || !chatData.info.members) {
+                container.innerHTML = 'No members found';
+                return;
+            }
+
+            const membersList = chatData.info.members.map(memberId => {
+                const isCurrentUser = currentUser && memberId === currentUser.user_id;
+                const canRemove = !isCurrentUser; // Can't remove yourself
+                
+                return `
+                    <div class="flex items-center justify-between" style="padding: 0.5rem; border: 1px solid hsl(var(--border)); border-radius: var(--radius); margin-bottom: 0.5rem;">
+                        <span>${memberId} ${isCurrentUser ? '(You)' : ''}</span>
+                        ${canRemove ? `<button type="button" class="button button-destructive" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="removeMemberFromChat('${memberId}')">Remove</button>` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = membersList;
+        }
+
+        async function addMemberToChat() {
+            const usernameInput = document.getElementById('add-member-username');
+            const username = usernameInput.value.trim();
+            
+            if (!username) {
+                showAlert('Please enter a username');
+                return;
+            }
+
+            const user = await getUserByUsername(username);
+            if (!user) {
+                showAlert('User not found');
+                return;
+            }
+
+            if (chatData.info.members.includes(user.user_id)) {
+                showAlert('User is already a member');
+                return;
+            }
+
+            try {
+                const result = await addUserToChat(chatId, user.user_id);
+                if (result.success) {
+                    showAlert('Member added successfully!', 'success');
+                    usernameInput.value = '';
+                    chatData = await loadChat(); // Refresh chat data
+                    updateChatHeader();
+                    renderCurrentMembers();
+                } else {
+                    showAlert(result.error_msg || 'Failed to add member');
+                }
+            } catch (error) {
+                showAlert('Network error. Please try again.');
+            }
+        }
+
+        async function removeMemberFromChat(userId) {
+            if (!confirm('Are you sure you want to remove this member?')) {
+                return;
+            }
+
+            try {
+                const result = await removeUserFromChat(chatId, userId);
+                if (result.success) {
+                    showAlert('Member removed successfully!', 'success');
+                    chatData = await loadChat(); // Refresh chat data
+                    updateChatHeader();
+                    renderCurrentMembers();
+                } else {
+                    showAlert(result.error_msg || 'Failed to remove member');
+                }
+            } catch (error) {
+                showAlert('Network error. Please try again.');
+            }
+        }
+
+        async function deleteChat() {
+            if (!confirm('Are you sure you want to delete this chat? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const result = await deleteChatRequest(chatId);
+                if (result.success) {
+                    showAlert('Chat deleted successfully!', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/chats';
+                    }, 2000);
+                } else {
+                    showAlert(result.error_msg || 'Failed to delete chat');
+                }
+            } catch (error) {
+                showAlert('Network error. Please try again.');
+            }
+        }
+
         async function initializeChat() {
             currentUser = await getCurrentUser();
+            
+            // Update nav for signed in users
+            if (currentUser) {
+                const navLinks = document.getElementById('nav-links');
+                navLinks.innerHTML = `
+                    <a href="/chats">Back to Chats</a>
+                    <a href="/accounts/${currentUser.user_id}">My Profile</a>
+                `;
+            }
+            
             chatData = await loadChat();
 
             if (!chatData) {
@@ -201,6 +388,17 @@
         });
 
         initializeChat();
+
+        // Auto-refresh messages every 5 seconds
+        setInterval(async () => {
+            if (chatData) {
+                const freshChat = await loadChat();
+                if (freshChat && freshChat.messages) {
+                    chatData.messages = freshChat.messages;
+                    renderMessages(chatData.messages);
+                }
+            }
+        }, 5000);
     </script>
 </body>
 </html>

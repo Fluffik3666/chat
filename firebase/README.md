@@ -1,0 +1,1 @@
+# Put the firebase file here for now, later will be .env

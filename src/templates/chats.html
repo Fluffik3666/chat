@@ -10,8 +10,7 @@
     <nav class="nav">
         <div class="container nav-container">
             <a href="/" class="nav-brand">Seurt</a>
-            <div class="nav-links">
-                <a href="/">Home</a>
+            <div class="nav-links" id="nav-links">
                 <a href="/accounts/create">Create Account</a>
             </div>
         </div>
@@ -49,8 +48,13 @@
                         <input type="text" id="chat-name" name="chat-name" class="input" placeholder="Enter chat name" required>
                     </div>
                     <div class="form-group">
-                        <label class="label" for="members">Members (User IDs, comma-separated)</label>
-                        <textarea id="members" name="members" class="input" placeholder="user1,user2,user3" style="height: 80px;"></textarea>
+                        <label class="label" for="members">Add Members</label>
+                        <div class="flex gap-2 mb-2">
+                            <input type="text" id="member-username" class="input" placeholder="Enter username" style="flex: 1;">
+                            <button type="button" class="button button-secondary" onclick="addMember()">Add</button>
+                        </div>
+                        <div id="members-list" class="mb-2"></div>
+                        <input type="hidden" id="members-data" name="members-data">
                     </div>
                     <div class="flex gap-2">
                         <button type="submit" class="button button-primary">Create Chat</button>
@@ -63,6 +67,7 @@
 
     <script>
         let currentUser = null;
+        let selectedMembers = [];
 
         async function getCurrentUser() {
             try {
@@ -75,6 +80,21 @@
                 }
             } catch (error) {
                 console.error('Error getting current user:', error);
+            }
+            return null;
+        }
+
+        async function getUserByUsername(username) {
+            try {
+                const response = await fetch(`/api/user/by-username/${username}`);
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        return result.data.user;
+                    }
+                }
+            } catch (error) {
+                console.error('Error finding user:', error);
             }
             return null;
         }
@@ -94,13 +114,13 @@
             return [];
         }
 
-        async function createChat(name, members) {
+        async function createChat(name, memberIds) {
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ name, members })
+                body: JSON.stringify({ name, members: memberIds })
             });
             return await response.json();
         }
@@ -117,6 +137,57 @@
         function hideCreateChatModal() {
             document.getElementById('create-chat-card').classList.add('hidden');
             document.getElementById('create-chat-form').reset();
+            selectedMembers = [];
+            renderMembersList();
+        }
+
+        async function addMember() {
+            const usernameInput = document.getElementById('member-username');
+            const username = usernameInput.value.trim();
+            
+            if (!username) {
+                showAlert('Please enter a username');
+                return;
+            }
+
+            if (selectedMembers.some(m => m.username === username)) {
+                showAlert('User already added');
+                return;
+            }
+
+            const user = await getUserByUsername(username);
+            if (!user) {
+                showAlert('User not found');
+                return;
+            }
+
+            selectedMembers.push(user);
+            usernameInput.value = '';
+            renderMembersList();
+            showAlert('User added successfully!', 'success');
+        }
+
+        function removeMember(index) {
+            selectedMembers.splice(index, 1);
+            renderMembersList();
+        }
+
+        function renderMembersList() {
+            const container = document.getElementById('members-list');
+            
+            if (selectedMembers.length === 0) {
+                container.innerHTML = '<p class="text-sm" style="color: hsl(var(--muted-foreground));">No members added yet</p>';
+                return;
+            }
+
+            const membersList = selectedMembers.map((member, index) => `
+                <div class="flex items-center justify-between" style="padding: 0.5rem; border: 1px solid hsl(var(--border)); border-radius: var(--radius); margin-bottom: 0.5rem;">
+                    <span>${member.username}</span>
+                    <button type="button" class="button-destructive" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="removeMember(${index})">Remove</button>
+                </div>
+            `).join('');
+
+            container.innerHTML = membersList;
         }
 
         function renderChats(chats) {
@@ -156,6 +227,10 @@
                 return;
             }
 
+            // Update nav to show profile link and remove home for signed in users
+            const navLinks = document.getElementById('nav-links');
+            navLinks.innerHTML = `<a href="/accounts/${currentUser.user_id}">My Profile</a>`;
+
             const chats = await getUserChats(currentUser.user_id);
             renderChats(chats);
         }
@@ -164,24 +239,19 @@
             e.preventDefault();
             
             const name = document.getElementById('chat-name').value.trim();
-            const membersText = document.getElementById('members').value.trim();
             
             if (!name) {
                 showAlert('Please enter a chat name');
                 return;
             }
 
-            let members = [];
-            if (membersText) {
-                members = membersText.split(',').map(m => m.trim()).filter(m => m);
-            }
-
+            let memberIds = selectedMembers.map(m => m.user_id);
             if (currentUser) {
-                members.push(currentUser.user_id);
+                memberIds.push(currentUser.user_id);
             }
 
             try {
-                const result = await createChat(name, members);
+                const result = await createChat(name, memberIds);
                 
                 if (result.success) {
                     showAlert('Chat created successfully!', 'success');
@@ -195,7 +265,9 @@
             }
         });
 
+        // Auto-refresh chats every 5 seconds
         loadChats();
+        setInterval(loadChats, 5000);
     </script>
 </body>
 </html>
