@@ -146,12 +146,33 @@
                     const result = await response.json();
                     if (result.success) {
                         return result.data.chat;
+                    } else if (result.error_msg && result.error_msg.includes('not a member')) {
+                        showAlert('You are not a member of this chat.', 'error');
+                        setTimeout(() => {
+                            window.location.href = '/chats';
+                        }, 2000);
+                        return null;
                     }
                 }
             } catch (error) {
                 console.error('Error loading chat:', error);
             }
             return null;
+        }
+
+        async function getUserInfo(userId) {
+            try {
+                const response = await fetch(`/api/user/${userId}`);
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        return result.data.user;
+                    }
+                }
+            } catch (error) {
+                console.error('Error getting user info:', error);
+            }
+            return { username: userId }; // Fallback to showing ID
         }
 
         async function sendMessage(content) {
@@ -170,7 +191,9 @@
             alertContainer.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
         }
 
-        function renderMessages(messages) {
+        let userCache = {};
+
+        async function renderMessages(messages) {
             const container = document.getElementById('messages-container');
             
             if (!messages || messages.length === 0) {
@@ -182,15 +205,25 @@
                 return;
             }
 
+            // Get usernames for all unique sender IDs
+            const uniqueSenderIds = [...new Set(messages.map(m => m.sender_id))];
+            for (const senderId of uniqueSenderIds) {
+                if (!userCache[senderId]) {
+                    const userInfo = await getUserInfo(senderId);
+                    userCache[senderId] = userInfo.username;
+                }
+            }
+
             const messagesList = messages.map(message => {
                 const isOwn = currentUser && message.sender_id === currentUser.user_id;
                 const messageClass = isOwn ? 'message message-own' : 'message message-other';
                 const timestamp = new Date(message.timestamp).toLocaleTimeString();
+                const senderName = userCache[message.sender_id] || message.sender_id;
                 
                 return `
                     <div class="${messageClass}">
                         <div class="message-header">
-                            ${isOwn ? 'You' : message.sender_id} • ${timestamp}
+                            ${isOwn ? 'You' : senderName} • ${timestamp}
                         </div>
                         <div>${message.content}</div>
                     </div>
@@ -233,14 +266,27 @@
                 return;
             }
 
-            const membersList = chatData.info.members.map(memberId => {
-                const isCurrentUser = currentUser && memberId === currentUser.user_id;
+            // Get usernames for all members
+            const memberData = [];
+            for (const memberId of chatData.info.members) {
+                if (!userCache[memberId]) {
+                    const userInfo = await getUserInfo(memberId);
+                    userCache[memberId] = userInfo.username;
+                }
+                memberData.push({
+                    id: memberId,
+                    username: userCache[memberId]
+                });
+            }
+
+            const membersList = memberData.map(member => {
+                const isCurrentUser = currentUser && member.id === currentUser.user_id;
                 const canRemove = !isCurrentUser; // Can't remove yourself
                 
                 return `
                     <div class="flex items-center justify-between" style="padding: 0.5rem; border: 1px solid hsl(var(--border)); border-radius: var(--radius); margin-bottom: 0.5rem;">
-                        <span>${memberId} ${isCurrentUser ? '(You)' : ''}</span>
-                        ${canRemove ? `<button type="button" class="button button-destructive" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="removeMemberFromChat('${memberId}')">Remove</button>` : ''}
+                        <span>${member.username} ${isCurrentUser ? '(You)' : ''}</span>
+                        ${canRemove ? `<button type="button" class="button button-destructive" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="removeMemberFromChat('${member.id}')">Remove</button>` : ''}
                     </div>
                 `;
             }).join('');
@@ -333,6 +379,7 @@
                 navLinks.innerHTML = `
                     <a href="/chats">Back to Chats</a>
                     <a href="/accounts/${currentUser.user_id}">My Profile</a>
+                    <button class="button button-secondary" onclick="logout()" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Logout</button>
                 `;
             }
             
@@ -395,10 +442,20 @@
                 const freshChat = await loadChat();
                 if (freshChat && freshChat.messages) {
                     chatData.messages = freshChat.messages;
-                    renderMessages(chatData.messages);
+                    await renderMessages(chatData.messages);
                 }
             }
         }, 5000);
+
+        async function logout() {
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+                window.location.href = '/';
+            } catch (error) {
+                console.error('Logout error:', error);
+                window.location.href = '/';
+            }
+        }
     </script>
 </body>
 </html>

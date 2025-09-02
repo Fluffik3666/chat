@@ -47,7 +47,8 @@ def create_chat():
 
 @blueprint.route('/chat/<chat_id>', methods=['GET'])
 def get_chat(chat_id):
-    return jsonify(db.get_chat(chat_id=chat_id))
+    requesting_user_id = session.get('user_id')
+    return jsonify(db.get_chat(chat_id=chat_id, requesting_user_id=requesting_user_id))
 
 @blueprint.route('/chat/<chat_id>/messages', methods=['GET'])
 def get_messages(chat_id):
@@ -86,3 +87,28 @@ def remove_member_from_chat(chat_id):
 @blueprint.route('/chat/<chat_id>', methods=['DELETE'])
 def delete_chat(chat_id):
     return jsonify(db.delete_chat(chat_id=chat_id))
+
+@blueprint.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get('username') if data else None
+    token = data.get('token') if data else None
+    
+    if not username or not token:
+        return jsonify({
+            "success": False,
+            "error_msg": "Username and token required"
+        })
+    
+    result = db.authenticate_user(username=username, token=token)
+    
+    if result.get('success'):
+        session['user_id'] = result['data']['user']['user_id']
+        session['username'] = result['data']['user']['username']
+    
+    return jsonify(result)
+
+@blueprint.route('/logout', methods=['POST'])
+def logout():
+    session.clear()
+    return jsonify({"success": True, "message": "Logged out successfully"})

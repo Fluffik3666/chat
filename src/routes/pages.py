@@ -35,3 +35,7 @@ def account_detail(id):
     is_self = session.get('user_id') == id
     
     return render_template('account_detail.html', id=str(id), is_self=bool(is_self)) # account detail, management
+
+@blueprint.route('/login')
+def login_page():
+    return render_template('login.html') # login to acc

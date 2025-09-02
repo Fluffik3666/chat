@@ -229,47 +229,34 @@ class DB:
     
     def get_chat(
         self,
-        chat_id: str = None
+        chat_id: str = None,
+        requesting_user_id: str = None
     ) -> dict:
         if chat_id is None or chat_id == "":
-            return self._format_response(
-                False,
-                error_msg="No chat_id provided."
-            )
-        
+            return self._format_response(False, error_msg="No chat_id provided.")
+
         try:
             chat_ref = self.db.collection('chats').document(chat_id)
             chat_doc = chat_ref.get()
-            
+
             if not chat_doc.exists:
-                return self._format_response(
-                    False,
-                    error_msg="Chat not found."
-                )
-            
+                return self._format_response(False, error_msg="Chat not found.")
+
             chat_data = chat_doc.to_dict()
             
+            if requesting_user_id and requesting_user_id not in chat_data.get('members', []):
+                return self._format_response(False, error_msg="You are not a member of this chat.")
+
             messages_ref = chat_ref.collection('messages').order_by('timestamp')
             messages = messages_ref.stream()
-            
+
             messages_list = []
             for msg in messages:
                 messages_list.append(msg.to_dict())
-            
-            return self._format_response(
-                True,
-                data={
-                    "chat": {
-                        "info": chat_data,
-                        "messages": messages_list
-                    }
-                }
-            )
+
+            return self._format_response(True, data={"chat": {"info": chat_data, "messages": messages_list}})
         except Exception as e:
-            return self._format_response(
-                False,
-                error_msg=f"Failed to get chat: {str(e)}"
-            )
+            return self._format_response(False, error_msg=f"Failed to get chat: {str(e)}")
     
     def get_messages(
         self,
@@ -393,3 +380,22 @@ class DB:
             return self._format_response(True, data={"message": "Chat deleted successfully"})
         except Exception as e:
             return self._format_response(False, error_msg=f"Failed to delete chat: {str(e)}")
+
+    def authenticate_user(self, username: str = None, token: str = None) -> dict:
+        if username is None or username == "":
+            return self._format_response(False, error_msg="No username provided.")
+
+        if token is None or token == "":
+            return self._format_response(False, error_msg="No token provided.")
+
+        try:
+            users_ref = self.db.collection('users').where('username', '==', username).where('token', '==', token).limit(1)
+            users = list(users_ref.stream())
+
+            if not users:
+                return self._format_response(False, error_msg="Invalid username or token.")
+
+            user_data = users[0].to_dict()
+            return self._format_response(True, data={"user": user_data})
+        except Exception as e:
+            return self._format_response(False, error_msg=f"Authentication failed: {str(e)}")
