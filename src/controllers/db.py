@@ -5,6 +5,7 @@ from firebase_admin import firestore
 import firebase_admin
 from firebase_admin import credentials
 import uuid
+from src.controllers.unblock import Unblock
 
 class DB:
     def __init__(self, credentials_path=None):
