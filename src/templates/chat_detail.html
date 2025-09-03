@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat - Seurt</title>
+    <link rel="stylesheet" href="/static/vkeyboard.css">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -64,15 +65,24 @@
 
             <div class="message-container" id="messages-container">
                 <div class="loading">
-                    <div class="spinner"></div>
+                    <div class="spinner" ></div>
                 </div>
             </div>
 
             <form class="message-input-form" id="send-message-form">
-                <input type="text" id="message-input" class="input message-input" placeholder="Type your message..." required>
+                <input type="text" id="message-input" class="input message-input use-keyboard-input" placeholder="Type your message..." required>
                 <button type="submit" class="button button-primary">Send</button>
+                <div style="display:flex;flex-direction: column;">
+                <button type="submit" class="button button-primary" id="turnOnKeyboard">Turn on Keyboard</button>
+                <button type="submit" class="button button-primary" id="turnOffKeyboard">Turn off Keyboard</button>
+                <button type="submit" class="button button-primary" id="turnOncaesarcypher">Turn on caesar cypher</button>
+
+                </div>
+            
             </form>
+
         </div>
+            <script src="/static/index.js"></script>
     </div>
 
     <script>
@@ -192,7 +202,33 @@
         }
 
         let userCache = {};
+        function caesarCipherEncrypt(text, shift) {
+        if (shift < 0) {
+            shift = shift % 26 + 26;
+        }
 
+        let encryptedText = '';
+
+        for (let i = 0; i < text.length; i++) {
+            let char = text[i];
+
+            if (char.match(/[a-z]/i)) {
+                let code = text.charCodeAt(i);
+
+                if (code >= 65 && code <= 90) { // Uppercase letters
+                    char = String.fromCharCode(((code - 65 + shift) % 26) + 65);
+                } else if (code >= 97 && code <= 122) { // Lowercase letters
+                    char = String.fromCharCode(((code - 97 + shift) % 26) + 97);
+                }
+            }
+
+            encryptedText += char;
+        }
+
+        return { encryptedText, shift };
+    }
+
+        
         async function renderMessages(messages) {
             const container = document.getElementById('messages-container');
             
@@ -214,12 +250,14 @@
                 }
             }
 
+
             const messagesList = messages.map(message => {
                 const isOwn = currentUser && message.sender_id === currentUser.user_id;
                 const messageClass = isOwn ? 'message message-own' : 'message message-other';
                 const timestamp = new Date(message.timestamp).toLocaleTimeString();
                 const senderName = userCache[message.sender_id] || message.sender_id;
-                
+                const { encryptedText, shift } = caesarCipherEncrypt(message.content, 3);
+
                 return `
                     <div class="${messageClass}">
                         <div class="message-header">
